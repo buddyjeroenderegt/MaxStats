@@ -1,0 +1,114 @@
+<script src="/js/dashboard.js"></script>
+
+<?php
+	// sort rooms by their name
+	$rooms = $this->rooms;
+	$alphaRooms = array();
+	foreach ( $this->rooms as $index => $room ) {
+		$alphaRooms[$index] = $room['title'];
+	}
+	asort($alphaRooms);
+	$sortedRooms = array();
+	foreach ( $alphaRooms as $index => $dummy ) {
+		$sortedRooms[] = $this->rooms[$index];
+	}
+	$this->rooms = $sortedRooms;
+?>
+
+<div id="overview">
+<?php foreach ( $this->rooms as $data ): ?>
+ <div class="box" style="float: left; cursor: pointer;" onclick="$('body').scrollTo( {top: ($('div.graph[serial=<?php echo $data['serial'] ?>]').position().top)-10-((isiPhone()) ? 0 : $('#overview').height()), left: 0}, 800);">
+  <h2><?php echo $data['title'] ?></h2>
+  <div class="status" serial="<?php echo $data['serial'] ?>">
+   <h3><span class="tempCurrent">&nbsp;&nbsp;&nbsp;</span>°C <small>/ <span class="tempTarget">0.0</span>°C</small></h3>
+   <div class="tempLatest"></div>
+   <div class="valveOpening"></div>
+   <div class="windowOpening"></div>
+  </div>
+ </div>
+<?php endForeach; ?>
+ <div style="float: left; padding-left: 0; padding-right: 0;" class="box timeselection">
+  <a href="?cubes=<?php echo Zend_Controller_Front::getInstance()->getRequest()->getParam('cubes') ?>&hours=12" class="btn hours12" style="width: 40px;">12 Std</a><a href="?cubes=<?php echo Zend_Controller_Front::getInstance()->getRequest()->getParam('cubes') ?>&hours=24" class="btn hours24" style="width: 40px;">24 Std</a><br />
+  <a href="?cubes=<?php echo Zend_Controller_Front::getInstance()->getRequest()->getParam('cubes') ?>&hours=48" class="btn hours48" style="width: 40px;">2 Tage</a><a href="?cubes=<?php echo Zend_Controller_Front::getInstance()->getRequest()->getParam('cubes') ?>&hours=72" class="btn hours72" style="width: 40px;">3 Tage</a><br />
+  <a href="?cubes=<?php echo Zend_Controller_Front::getInstance()->getRequest()->getParam('cubes') ?>&hours=168" class="btn hours168" style="width: 40px;">7 Tage</a><a href="?cubes=<?php echo Zend_Controller_Front::getInstance()->getRequest()->getParam('cubes') ?>&hours=672" class="btn hours672" style="width: 40px;">28 Tage</a><br />
+ </div>
+<br style="clear: both;" />
+</div>
+
+<span class="updateTime"></span>
+
+<script>
+ var building = {rooms: []};
+
+<?php foreach ( $this->rooms as $data ): ?>
+ var room = <?php echo json_encode($data); ?>; room.data = {}; room.valves = []; room.shutter = []; building.rooms[room.serial] = room;
+<?php endForeach; ?>
+
+<?php foreach ( $this->valves as $data ): ?>
+ building.rooms["<?php echo $data['roomAssignment'] ?>"].valves.push(<?php echo json_encode($data); ?>);
+<?php endForeach; ?>
+
+<?php foreach ( $this->windows as $data ): ?>
+ building.rooms["<?php echo $data['roomAssignment'] ?>"].shutter.push(<?php echo json_encode($data); ?>);
+<?php endForeach; ?>
+
+var updateQueue = [];
+var timeToDisplay = parseInt('<?php echo Zend_Controller_Front::getInstance()->getRequest()->getParam('hours') ?>');
+timeToDisplay = (!timeToDisplay) ? 24 : timeToDisplay;
+var cubes = '<?php echo Zend_Controller_Front::getInstance()->getRequest()->getParam('cubes') ?>';
+document.title += ' | ' + cubes;
+var specialDevices = [];
+if ( cubes == 'JEQ0193016' ) {
+	specialDevices.push('ash2200_1');
+}
+var tsStart = (new Date().getTime() - (timeToDisplay*60*60*1000));
+var tsEnd = tsStart;
+var spinnerOptions = {
+  lines: 5,
+  length: 15,
+  width: 11,
+  radius: 0,
+  corners: 1,
+  rotate: 55,
+  color: 'rgba(237, 194, 64, 0.5)',
+  speed: 0.6,
+  trail: 100,
+  shadow: false,
+  hwaccel: false,
+  className: 'spinner',
+  zIndex: 2e9,
+  top: '0px',
+  left: '0px'
+};
+
+$(function() {
+
+	$('a.hours'+timeToDisplay).addClass('primary');
+
+	// build a graph for each room
+	for ( var i in building.rooms ) {
+		var room = building.rooms[i];
+		var container = $('<div>').addClass('graph').attr('serial', room.serial).addClass('graph').css({width: '100%', height: (isiPhone()) ? 480 : 300});
+		$('<h2>').addClass('rotate').text(room.title).appendTo(container);
+		$('body').append(container);
+		$('<div>').addClass('plot').css({width: container.width()-60, height: (isiPhone()) ? 450 : 250}).appendTo(container);
+		
+		$('.status[serial='+room.serial+']').find('.tempCurrent').spin(spinnerOptions);
+	}
+
+	building.rooms['legend'] = {data:{},valves:[],shutter:[]};
+	var container = $('<div>').attr('serial', 'legend').addClass('graph').addClass('legend').css({width: '100%', height: 450});
+	$('<h2>').addClass('rotate').text('Legende').appendTo(container);
+	$('body').append(container);
+	$('<div>').addClass('plot').css({width: container.width()-100, height: 400}).appendTo(container);
+	
+	if ( !isiPhone() ) {
+		$('body').css({paddingTop: ($('#overview').height()+10)});
+	}
+
+	renderRoom({result:[{device:{type:'Room',serial:'legend'}}]});
+	$('body').scrollTo(1,0);
+	fetchUpdate();
+});
+
+</script>
